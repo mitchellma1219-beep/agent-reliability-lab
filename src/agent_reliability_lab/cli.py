@@ -25,9 +25,9 @@ from .metrics import compute_metrics
 from .models import GuardConfig, PriceTable, RunConfig, Suite, default_price_table
 from .report import (
     DISCLAIMER,
-    clean,
     money,
     number,
+    plain,
     rate,
     render_calibration,
     render_comparison,
@@ -124,8 +124,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
     else:
         profile = f" | fault profile {config.fault_profile}" if config.fault_profile else ""
         print(
-            f"Suite {clean(suite.name, 60)} ({metrics.cases} cases) | agent "
-            f"{clean(run.agent_name, 60)} {clean(run.agent_version, 30)} | seed {config.seed} | "
+            f"Suite {plain(suite.name, 60)} ({metrics.cases} cases) | agent "
+            f"{plain(run.agent_name, 60)} {plain(run.agent_version, 30)} | seed {config.seed} | "
             f"{config.trials} trial(s){profile}"
         )
         print()
@@ -133,7 +133,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         for stat in metrics.case_stats:
             if stat.outcome == "pass":
                 if not args.quiet:
-                    print(f"  PASS   {clean(stat.case_id, 80)}")
+                    print(f"  PASS   {plain(stat.case_id, 80)}")
                 continue
             label = "FAIL " if stat.outcome == "fail" else "FLAKY"
             detail = ""
@@ -141,9 +141,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
             if failed is not None:
                 evaluation = next(item for item in failed.evaluations if not item.passed)
                 problem = evaluation.failures()[0]
-                detail = f"  {evaluation.evaluator}: {clean(problem.message, 110)}"
+                detail = f"  {evaluation.evaluator}: {plain(problem.message, 110)}"
             trials = f" ({stat.passes}/{stat.trials})" if stat.trials > 1 else ""
-            print(f"  {label}  {clean(stat.case_id, 80)}{trials}{detail}")
+            print(f"  {label}  {plain(stat.case_id, 80)}{trials}{detail}")
         print()
         print(f"Pass rate          {rate(metrics.pass_rate)}")
         print(f"Task success       {rate(metrics.task_success_rate, False)}")
@@ -156,7 +156,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print(
             f"Tokens             {metrics.input_tokens:,} in, {metrics.output_tokens:,} out; "
             f"estimated cost {money(metrics.estimated_cost_usd)} "
-            f"(estimate, price table '{clean(metrics.price_table, 40)}')"
+            f"(estimate, price table '{plain(metrics.price_table, 40)}')"
         )
         print(
             f"Tool calls         {metrics.tool_calls:,}, retries {metrics.retries:,}, "
@@ -205,7 +205,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
     else:
         sys.stdout.write(render_run_list(infos))
     for problem in problems:
-        print(f"warning: {clean(problem, 300)}", file=sys.stderr)
+        print(f"warning: {plain(problem, 300)}", file=sys.stderr)
     return 0
 
 
@@ -249,12 +249,12 @@ def _cmd_scenarios(args: argparse.Namespace) -> int:
     if args.format == "json":
         print(json.dumps({"suite": suite.name, "cases": cases}, indent=2))
         return 0
-    print(f"{clean(suite.name, 60)}: {len(cases)} cases")
+    print(f"{plain(suite.name, 60)}: {len(cases)} cases")
     for case in cases:
         faults = f" [faults: {', '.join(case['faults'])}]" if case["faults"] else ""
-        print(f"  {clean(case['id'], 60):38s} {case['category']:28s}{faults}")
+        print(f"  {plain(case['id'], 60):38s} {case['category']:28s}{faults}")
         if case["description"]:
-            print(f"      {clean(case['description'], 150)}")
+            print(f"      {plain(case['description'], 150)}")
         print(f"      checks: {', '.join(case['checks'])}")
     return 0
 
@@ -491,7 +491,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result: int = args.handler(args)
         return result
     except ArlError as exc:
-        print(f"error: {clean(exc, 2000)}", file=sys.stderr)
+        print(f"error: {plain(exc, 2000)}", file=sys.stderr)
         return 2
     except BrokenPipeError:
         return 0

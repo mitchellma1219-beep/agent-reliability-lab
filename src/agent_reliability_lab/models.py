@@ -9,13 +9,16 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 SCHEMA_VERSION = 1
 
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
+NAME_PATTERN = r"^[a-z][a-z0-9_]{0,49}$"
+VERSION_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,39}$"
+TIMESTAMP_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
 MAX_TEXT_CHARS = 200_000
 MAX_PATTERN_CHARS = 500
 
@@ -487,7 +490,7 @@ class Case(Model):
     """One test case of a golden dataset."""
 
     id: str = Field(pattern=ID_PATTERN)
-    category: str = Field(pattern=r"^[a-z][a-z0-9_]{0,49}$")
+    category: str = Field(pattern=NAME_PATTERN)
     description: str = Field(default="", max_length=2000)
     tags: list[str] = Field(default_factory=list)
     input: str = Field(min_length=1, max_length=MAX_TEXT_CHARS)
@@ -564,7 +567,7 @@ class Suite(Model):
     """A named golden dataset."""
 
     name: str = Field(pattern=ID_PATTERN)
-    version: str = Field(default="1", max_length=40)
+    version: str = Field(default="1", pattern=VERSION_PATTERN)
     description: str = Field(default="", max_length=4000)
     defaults: SuiteDefaults = Field(default_factory=SuiteDefaults)
     cases: list[Case] = Field(min_length=1, max_length=5000)
@@ -619,7 +622,7 @@ class ToolCall(Model):
     is_retry: bool = False
     latency_ms: float = 0.0
     started_ms: float = 0.0
-    fault: str | None = None
+    fault: str | None = Field(default=None, pattern=NAME_PATTERN)
     sink: bool = False
     side_effect: bool = False
 
@@ -648,7 +651,7 @@ class Wait(Model):
 class SecurityEvent(Model):
     """Something the containment layer blocked or noticed."""
 
-    kind: str
+    kind: str = Field(pattern=NAME_PATTERN)
     detail: str
 
 
@@ -712,7 +715,7 @@ class Trace(Model):
 
 
 class Finding(Model):
-    code: str
+    code: str = Field(pattern=NAME_PATTERN)
     message: str
     severity: Literal["error", "warning", "info"] = "error"
 
@@ -720,7 +723,7 @@ class Finding(Model):
 class Evaluation(Model):
     """The verdict of one evaluator on one trace."""
 
-    evaluator: str
+    evaluator: str = Field(pattern=NAME_PATTERN)
     passed: bool
     score: float | None = None
     findings: list[Finding] = Field(default_factory=list)
@@ -733,13 +736,15 @@ class Evaluation(Model):
 class CaseResult(Model):
     """One case, one trial: the trace plus every applicable evaluation."""
 
-    case_id: str
-    category: str
-    trial: int
+    case_id: str = Field(pattern=ID_PATTERN)
+    category: str = Field(pattern=NAME_PATTERN)
+    trial: int = Field(ge=0)
     seed: int
     passed: bool
     evaluations: list[Evaluation] = Field(default_factory=list)
-    failure_categories: list[str] = Field(default_factory=list)
+    failure_categories: list[Annotated[str, Field(pattern=NAME_PATTERN)]] = Field(
+        default_factory=list
+    )
     estimated_cost_usd: float | None = None
     trace: Trace
 
@@ -806,7 +811,7 @@ class RunConfig(Model):
     max_llm_calls: int = Field(default=200, ge=1, le=100_000)
     max_output_chars: int = Field(default=100_000, ge=100, le=10_000_000)
     extra_faults: list[FaultSpec] = Field(default_factory=list)
-    fault_profile: str | None = None
+    fault_profile: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]{0,49}$")
     prices: PriceTable = Field(default_factory=default_price_table)
     guard: GuardConfig = Field(default_factory=GuardConfig)
 
@@ -816,13 +821,13 @@ class RunResult(Model):
 
     schema_version: int = SCHEMA_VERSION
     run_id: str = Field(pattern=ID_PATTERN)
-    created_at: str
-    arl_version: str
-    suite_name: str
-    suite_version: str
-    suite_description: str = ""
-    agent_name: str
-    agent_version: str
+    created_at: str = Field(pattern=TIMESTAMP_PATTERN)
+    arl_version: str = Field(pattern=VERSION_PATTERN)
+    suite_name: str = Field(pattern=ID_PATTERN)
+    suite_version: str = Field(pattern=VERSION_PATTERN)
+    suite_description: str = Field(default="", max_length=4000)
+    agent_name: str = Field(max_length=100)
+    agent_version: str = Field(max_length=40)
     config: RunConfig
     results: list[CaseResult] = Field(default_factory=list)
     notes: str = ""
