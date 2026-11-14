@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import __version__
+from . import __version__, guard
 from .agents.base import Agent, AgentContext, AgentResponse, infer_status
 from .errors import ConfigError, HarnessAbort
 from .evaluators import DEFAULT_EVALUATORS
@@ -194,7 +194,14 @@ def run_case(
         )
         ctx = AgentContext(task, sandbox, seed)
         started = time.perf_counter()
-        outcome = _execute(agent, ctx, timeout_s)
+        wrapper = None
+        if config.guard.enabled:
+            events, settings = sandbox.events, config.guard
+
+            def wrapper(target: Callable[[], None]) -> Callable[[], None]:
+                return guard.wrap(target, settings, workdir, events)
+
+        outcome = _execute(agent, ctx, timeout_s, wrapper)
         wall_ms = (time.perf_counter() - started) * 1000.0
         sandbox.close("timeout" if outcome.timed_out else "finished")
         output, truncated, status, source, errors, metadata = _response(
