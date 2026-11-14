@@ -160,6 +160,7 @@ def _response(
             )
         )
         output = output[: config.max_output_chars]
+    metadata = {**sandbox.annotations, **metadata}
     if len(json.dumps(metadata, default=str)) > MAX_METADATA_CHARS:
         metadata = {"dropped": "agent metadata was too large to store"}
     return output, truncated, status, source, errors, metadata

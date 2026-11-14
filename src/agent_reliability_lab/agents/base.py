@@ -88,6 +88,10 @@ class AgentContext:
         """Pause for ``ms`` of simulated time (back-off, Retry-After)."""
         self.__sandbox.wait(ms, reason)
 
+    def annotate(self, key: str, value: Any) -> None:
+        """Attach JSON-like metadata to the trace. Unlike response metadata it survives an abort."""
+        self.__sandbox.annotate(key, value)
+
     @property
     def elapsed_ms(self) -> float:
         """Accounted time so far: tool latency, reported model latency and waits."""

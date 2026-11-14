@@ -209,6 +209,7 @@ def _call_specs(case: Case) -> list[tuple[str, ToolCallSpec]]:
     specs: list[tuple[str, ToolCallSpec]] = []
     if case.expected.tool_calls is not None:
         specs += [("expected.tool_calls.required", s) for s in case.expected.tool_calls.required]
+        specs += [("expected.tool_calls.attempted", s) for s in case.expected.tool_calls.attempted]
         specs += [("expected.tool_calls.forbidden", s) for s in case.expected.tool_calls.forbidden]
     if case.attack is not None:
         specs += [("attack.indicators.tool_calls", s) for s in case.attack.indicators.tool_calls]

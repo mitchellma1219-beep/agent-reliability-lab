@@ -260,6 +260,7 @@ class SimPlan(Model):
     steps: list[SimStep] = Field(default_factory=list)
     answer: str | None = None
     answer_json: JsonValue = None
+    status: Status = "completed"
     read: SimRead | None = None
     otherwise: SimOtherwise | None = None
     missing: list[str] = Field(default_factory=list)
@@ -324,7 +325,10 @@ class ToolCallSpec(Model):
 
 
 class ToolCallExpectation(Model):
+    """``required`` calls must succeed; ``attempted`` calls must be made, whatever happens."""
+
     required: list[ToolCallSpec] = Field(default_factory=list)
+    attempted: list[ToolCallSpec] = Field(default_factory=list)
     forbidden: list[ToolCallSpec] = Field(default_factory=list)
     order: list[str] = Field(default_factory=list)
     allow_extra: bool = True

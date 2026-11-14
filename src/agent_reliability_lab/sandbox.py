@@ -64,6 +64,7 @@ class Sandbox:
         self.llm_calls: list[LlmCall] = []
         self.waits: list[Wait] = []
         self.events: list[SecurityEvent] = []
+        self.annotations: dict[str, Any] = {}
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -284,6 +285,12 @@ class Sandbox:
                 )
             )
             self.now_ms += float(ms)
+
+    def annotate(self, key: str, value: Any) -> None:
+        """Attach a small piece of agent-supplied metadata to the trace."""
+        with self._lock:
+            if len(self.annotations) < 50 or key in self.annotations:
+                self.annotations[str(key)[:100]] = json.loads(json.dumps(value, default=str))
 
     def usage(self) -> Usage:
         by_model: dict[str, ModelUsage] = {}

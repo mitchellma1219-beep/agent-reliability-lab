@@ -157,6 +157,7 @@ class _Episode:
         self.triggered: set[str] = set()
         self.seen: list[str] = [self.task.input, *(doc.text for doc in self.task.context)]
         self.failure: _Failure | None = None
+        self.ask = False
         self.declined = False
         self.skipped_steps = False
         self.effects: list[str] = []
@@ -171,6 +172,12 @@ class _Episode:
             + len(specs)
         )
 
+    def trigger(self, mode: str) -> None:
+        """Note that a broken behaviour actually changed what the agent did."""
+        if mode not in self.triggered:
+            self.triggered.add(mode)
+            self.ctx.annotate("triggered", sorted(self.triggered))
+
     # ------------------------------------------------------------------ accounting
 
     def llm(self, note: str, *, new_chars: int = 0, output_chars: int = 120) -> None:
@@ -180,10 +187,10 @@ class _Episode:
         latency = 150.0 + 2.0 * output_tokens
         if self.b.expensive:
             input_tokens += EXPENSIVE_EXTRA_TOKENS
-            self.triggered.add("expensive")
+            self.trigger("expensive")
         if self.b.slow:
             latency += SLOW_EXTRA_MS
-            self.triggered.add("slow")
+            self.trigger("slow")
         self.ctx.record_llm_call(
             model=MODEL,
             input_tokens=input_tokens,
@@ -213,8 +220,10 @@ class _Episode:
         try:
             value = self.lookup(ref)
         except _MissingValue:
+            if ref.startswith("slots."):
+                raise
             if self.b.hallucinates:
-                self.triggered.add("hallucinates")
+                self.trigger("hallucinates")
                 return self.fabricate_scalar()
             if self.b.partial_completion and self.skipped_steps:
                 return "done"
@@ -320,11 +329,11 @@ class _Episode:
         for key in ("body", "content"):
             if isinstance(leaked.get(key), str):
                 leaked[key] = f"{leaked[key]}\n\n{self.dump()}"
-                self.triggered.add("leaks_canary")
+                self.trigger("leaks_canary")
                 return leaked
         if "payload" in leaked:
             leaked["payload"] = {"data": leaked["payload"], "debug": self.dump()}
-            self.triggered.add("leaks_canary")
+            self.trigger("leaks_canary")
         return leaked
 
     def check(self, tool: str, raw: Any) -> tuple[Any, str | None]:
@@ -369,17 +378,17 @@ class _Episode:
                 invalid = problem is not None
                 if self.b.trusts_invalid_data:
                     if invalid or value != raw:
-                        self.triggered.add("trusts_invalid_data")
+                        self.trigger("trusts_invalid_data")
                     return raw
                 if not invalid:
                     return value
             if self.b.unbounded_retry:
                 if attempt >= MAX_ATTEMPTS or not retryable:
-                    self.triggered.add("unbounded_retry")
+                    self.trigger("unbounded_retry")
                 continue
             if retryable and attempt < MAX_ATTEMPTS:
                 if self.b.no_retry:
-                    self.triggered.add("no_retry")
+                    self.trigger("no_retry")
                 else:
                     self.ctx.wait(
                         retry_after if retry_after is not None else 200.0 * 2 ** (attempt - 1),
@@ -400,11 +409,11 @@ class _Episode:
             and "recipients" in arguments
         ):
             if self.b.partial_completion:
-                self.triggered.add("partial_completion")
+                self.trigger("partial_completion")
                 break
             if self.b.no_retry or (rounds >= MAX_ATTEMPTS and not self.b.unbounded_retry):
                 if self.b.no_retry:
-                    self.triggered.add("no_retry")
+                    self.trigger("no_retry")
                 self.failure = _Failure(
                     tool, "partial", f"{len(result['failed'])} recipient(s) not reached", rounds
                 )
@@ -432,7 +441,7 @@ class _Episode:
                     name: values[min(position, len(values) - 1)]
                     for position, name in enumerate(required)
                 }
-                self.triggered.add("wrong_tool")
+                self.trigger("wrong_tool")
                 return candidate, mapped
         return tool, arguments
 
@@ -450,7 +459,7 @@ class _Episode:
                     bumped = str(int(digits.group(1)) + 1).zfill(len(digits.group(1)))
                     corrupted[first] = value[: digits.start(1)] + bumped + value[digits.end(1) :]
                 else:
-                    corrupted[first] = value + "-x"
+                    corrupted[first] = "something else entirely"
             elif isinstance(value, int | float) and not isinstance(value, bool):
                 corrupted[first] = value * 10
             else:
@@ -459,19 +468,19 @@ class _Episode:
             del corrupted[first]
         else:
             corrupted[first] = [value]
-        self.triggered.add("bad_arguments")
+        self.trigger("bad_arguments")
         return corrupted
 
     def run_steps(self) -> None:
         steps: list[SimStep] = list(self.plan.steps)
         limit = len(steps)
-        if self.b.partial_completion and len(steps) >= 2:
+        if self.b.partial_completion and len(steps) >= 2 and not self.plan.missing:
             limit = math.ceil(len(steps) / 2)
         sabotaged = False
         for position, step in enumerate(steps):
             if position >= limit:
                 self.skipped_steps = True
-                self.triggered.add("partial_completion")
+                self.trigger("partial_completion")
                 break
             if step.when is not None and not self.holds(step.when):
                 self.declined = True
@@ -479,7 +488,10 @@ class _Episode:
             try:
                 arguments = self.fill(step.args, display=False)
             except _MissingValue as exc:
-                self.failure = _Failure(step.tool, "missing_data", f"no value for {exc.ref}", 0)
+                if exc.ref.startswith("slots."):
+                    self.ask = True
+                else:
+                    self.failure = _Failure(step.tool, "missing_data", f"no value for {exc.ref}", 0)
                 break
             tool = step.tool
             if not sabotaged and self.b.wrong_tool:
@@ -495,7 +507,7 @@ class _Episode:
                     break
                 info = self.ctx.tools.spec(tool)
                 result = self.fabricate(info.returns if info is not None else {})
-                self.triggered.add("hallucinates")
+                self.trigger("hallucinates")
                 self.failure = None
             self.memory[step.id] = result
             info = self.ctx.tools.spec(tool)
@@ -511,7 +523,7 @@ class _Episode:
         for injection in self.plan.injections:
             if injection.marker.casefold() not in seen:
                 continue
-            self.triggered.add("follows_injection")
+            self.trigger("follows_injection")
             for call in injection.calls:
                 try:
                     arguments = self.fill(call.args, display=False)
@@ -536,6 +548,8 @@ class _Episode:
             for hit in results if isinstance(results, list) else []:
                 if isinstance(hit, dict) and isinstance(hit.get("text"), str):
                     documents.append((str(hit.get("id", "")), hit["text"]))
+            if isinstance(hits, dict) and isinstance(hits.get("content"), str):
+                documents.append((str(hits.get("path", step_id)), hits["content"]))
         if read.use_context:
             documents.extend((doc.id, doc.text) for doc in self.task.context)
         for doc_id, text in documents:
@@ -557,11 +571,11 @@ class _Episode:
             recent = [item for item in scored if item[2] == last_doc]
             lure = max(recent, default=None)
             if lure is not None and lure[0] >= DISTRACTION_THRESHOLD and lure != best:
-                self.triggered.add("distracted")
+                self.trigger("distracted")
                 best = lure
         if best is None or best[0] < READ_THRESHOLD:
             if self.b.hallucinates:
-                self.triggered.add("hallucinates")
+                self.trigger("hallucinates")
                 days = 12 + int(self.ctx.uniform("fabricated answer") * 78)
                 reference = self.fabricate_scalar().replace("FAB", "POL")
                 return f"According to policy {reference}, the answer is {days} days.", "completed"
@@ -593,6 +607,14 @@ class _Episode:
         return text + " No further action was taken.", "failed"
 
     def compose(self) -> tuple[str, Status]:
+        if self.ask:
+            try:
+                question = str(self.fill(self.plan.clarifying_question or "", display=True))
+            except _MissingValue:
+                question = ""
+            return question or "Could you clarify what you would like me to do?", (
+                "needs_clarification"
+            )
         if self.declined and self.plan.otherwise is not None:
             try:
                 answer = str(self.fill(self.plan.otherwise.answer, display=True))
@@ -606,9 +628,9 @@ class _Episode:
                 return self.read()
             if self.plan.answer_json is not None:
                 filled = self.fill(self.plan.answer_json, display=False)
-                return json.dumps(filled, ensure_ascii=False), "completed"
+                return json.dumps(filled, ensure_ascii=False), self.plan.status
             if self.plan.answer is not None:
-                return str(self.fill(self.plan.answer, display=True)), "completed"
+                return str(self.fill(self.plan.answer, display=True)), self.plan.status
         except _MissingValue as exc:
             self.failure = _Failure("the answer", "missing_data", f"no value for {exc.ref}", 0)
             return self.failure_text()
@@ -635,6 +657,8 @@ class _Episode:
         for rule in rules:
             for phrase in [*rule.must_not_include, *rule.confidential]:
                 text = re.sub(re.escape(phrase), "[redacted]", text, flags=re.IGNORECASE)
+            if rule.must_not_match is not None:
+                text = re.sub(rule.must_not_match, "[redacted]", text)
         required = [phrase for rule in rules for phrase in rule.must_include]
         limits = [rule.max_words for rule in rules if rule.max_words is not None]
         if limits and not structured:
@@ -677,7 +701,7 @@ class _Episode:
         stripped = text.strip()
         if not (stripped[:1] in "{[" and is_json(stripped)):
             return text
-        self.triggered.add("invalid_json")
+        self.trigger("invalid_json")
         variant = int(self.ctx.uniform("invalid_json") * 4)
         schema = self.task.output_schema or {}
         payload = json.loads(stripped)
@@ -702,7 +726,7 @@ class _Episode:
             ]
             relaxed = self.constrain(text, user_only, status)
             if relaxed != constrained:
-                self.triggered.add("ignores_instruction")
+                self.trigger("ignores_instruction")
             constrained = relaxed
         text = constrained
         if self.b.invalid_json and status == "completed":
@@ -711,27 +735,25 @@ class _Episode:
             text = text + "\n" + "\n".join(self.injected_text)
         if self.b.leaks_canary:
             text = f"{text}\n\n{self.dump()}"
-            self.triggered.add("leaks_canary")
+            self.trigger("leaks_canary")
         self.llm("final answer", output_chars=len(text))
         return AgentResponse(
             output=text,
             status=status,
-            metadata={
-                "simulated": True,
-                "modes": self.b.active_modes(),
-                "triggered": sorted(self.triggered),
-            },
+            metadata={"simulated": True, "triggered": sorted(self.triggered)},
         )
 
     def run(self) -> AgentResponse:
+        self.ctx.annotate("simulated", True)
+        self.ctx.annotate("modes", self.b.active_modes())
+        self.ctx.annotate("triggered", [])
         self.llm("read the task and plan")
-        if self.plan.missing:
-            if not self.b.guesses_when_ambiguous:
-                question = self.plan.clarifying_question or "Could you clarify?"
-                return self.finish(question, "needs_clarification")
+        if self.plan.missing and self.b.guesses_when_ambiguous:
             self.memory["slots"] = dict(self.plan.guess)
-            self.triggered.add("guesses_when_ambiguous")
+            self.trigger("guesses_when_ambiguous")
         self.run_steps()
+        if self.plan.missing and not self.b.guesses_when_ambiguous and self.failure is None:
+            self.ask = True
         if self.b.follows_injection:
             self.obey_injections()
         text, status = self.compose()

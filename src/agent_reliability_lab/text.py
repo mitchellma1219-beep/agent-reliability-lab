@@ -136,6 +136,9 @@ STOPWORDS = frozenset(
         "want",
         "need",
         "according",
+        "much",
+        "many",
+        "long",
         "per",
         "via",
     ]
