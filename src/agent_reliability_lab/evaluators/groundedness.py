@@ -39,16 +39,24 @@ def negated(text: str) -> bool:
 def claims(output: str, ignore: list[str]) -> list[tuple[str, list[str]]]:
     """Sentences of the output that assert something, each with the sources it cites."""
     found: list[tuple[str, list[str]]] = []
+    previous_was_claim = False
     for sentence in split_sentences(output):
         cited = CITATION.findall(sentence)
         text = CITATION.sub("", sentence).strip()
-        if not text or text.endswith("?") or _META.match(text):
+        if not text:
+            # A citation written after the full stop belongs to the sentence before it.
+            if cited and previous_was_claim:
+                found[-1][1].extend(cited)
+            continue
+        previous_was_claim = False
+        if text.endswith("?") or _META.match(text):
             continue
         if any(re.search(pattern, text, re.IGNORECASE) for pattern in ignore):
             continue
         if len(set(content_tokens(text))) < MIN_CLAIM_TOKENS:
             continue
         found.append((text, cited))
+        previous_was_claim = True
     return found
 
 
@@ -72,7 +80,14 @@ class Groundedness:
         findings: list[Finding] = []
         report: list[JsonValue] = []
         supported = 0
-        found = claims(prose(trace.output), check.ignore_patterns)
+        answer = prose(trace.output)
+        found = claims(answer, check.ignore_patterns)
+        attached = {source for _, cited in found for source in cited}
+        stray = sorted(set(CITATION.findall(answer)) - sources - attached)
+        if stray:
+            findings.append(
+                finding("unknown_citation", f"cites a source the agent never saw: {stray}")
+            )
         for text, cited in found:
             tokens = set(content_tokens(text))
             coverage = overlap(tokens, everything)

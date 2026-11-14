@@ -25,10 +25,10 @@ class Passage:
 def flatten(value: Any) -> str:
     """Readable text for a JSON value: ``{"order_id": "A-1"}`` -> ``order id: A-1``."""
     if isinstance(value, dict):
-        parts = [f"{str(key).replace('_', ' ')}: {flatten(item)}" for key, item in value.items()]
-        return ". ".join(part for part in parts if part)
+        pairs = [(str(key).replace("_", " "), flatten(item)) for key, item in value.items()]
+        return ". ".join(f"{key}: {text}" for key, text in pairs if text)
     if isinstance(value, list):
-        return ". ".join(flatten(item) for item in value)
+        return ". ".join(text for text in (flatten(item) for item in value) if text)
     if isinstance(value, bool):
         return "true" if value else "false"
     if value is None:
