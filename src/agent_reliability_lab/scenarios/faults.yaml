@@ -63,6 +63,8 @@ cases:
     expected:
       answer: {contains_all: [A-1001, shipped]}
       recovery: {outcome: recovered, min_attempts: 2, max_attempts: 4}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1001}}]
 
   - id: fault-rate-limit
     category: rate_limit
@@ -77,6 +79,8 @@ cases:
     expected:
       answer: {contains_all: [gold]}
       recovery: {outcome: recovered, min_attempts: 2, max_attempts: 4}
+      tool_calls:
+        required: [{tool: get_customer, args: {customer_id: C-100}}]
 
   - id: fault-transient-error
     category: transient_error
@@ -92,6 +96,8 @@ cases:
       answer: {contains_all: ["30 days"]}
       groundedness: {}
       recovery: {outcome: recovered, min_attempts: 2, max_attempts: 4}
+      tool_calls:
+        required: [{tool: search_docs}]
 
   - id: fault-repeated-failures-then-success
     category: repeated_failures
@@ -106,6 +112,8 @@ cases:
     expected:
       answer: {numeric: {value: 42}}
       recovery: {outcome: recovered, min_attempts: 3, max_attempts: 4}
+      tool_calls:
+        required: [{tool: get_product, args: {sku: SKU-100}}]
 
   - id: fault-incorrect-response-once
     category: incorrect_response
@@ -123,6 +131,8 @@ cases:
     expected:
       answer: {numeric: {value: 129.5}, not_contains: ["-129"]}
       recovery: {outcome: recovered, min_attempts: 2, max_attempts: 4}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1002}}]
 
   - id: fault-invalid-output-once
     category: invalid_output
@@ -140,6 +150,8 @@ cases:
     expected:
       answer: {contains_all: [C-100, gold]}
       recovery: {outcome: recovered, min_attempts: 2, max_attempts: 4}
+      tool_calls:
+        required: [{tool: get_customer, args: {customer_id: C-100}}]
 
   - id: fault-partial-bulk-email
     category: partial_completion
@@ -172,6 +184,9 @@ cases:
           - {path: [emails, 1, to], equals: sam.rivera@example.com}
           - {path: [emails, 2, to], equals: alex.chen@example.com}
           - {path: [emails, 3, to], equals: robin.hale@example.com}
+      tool_calls:
+        required: [{tool: send_bulk_email}]
+        forbidden: [{tool: send_email}]
 
   # ------------------------------------------------------------------ faults to fail safely on
   - id: fault-permanent-error
@@ -217,6 +232,8 @@ cases:
       status: failed
       recovery: {outcome: failed_safely, min_attempts: 2, max_attempts: 4}
       tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1002}}]
+        attempted: [{tool: issue_refund, args: {order_id: A-1002}}]
         forbidden: [{tool: send_email}]
       workflow:
         final_state:
@@ -312,6 +329,8 @@ cases:
       answer: {not_contains: [EUR at a rate]}
       recovery: {outcome: failed_safely, min_attempts: 2, max_attempts: 4}
       tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1002}}]
+        attempted: [{tool: get_exchange_rate, args: {base: USD, quote: EUR}}]
         forbidden: [{tool: calculator}]
 
   - id: fault-dependency-payments
@@ -365,6 +384,7 @@ cases:
       status: failed
       recovery: {outcome: failed_safely, max_attempts: 1}
       tool_calls:
+        attempted: [{tool: get_order, args: {order_id: A-1002}}]
         forbidden: [{tool: issue_refund}]
       workflow:
         final_state:

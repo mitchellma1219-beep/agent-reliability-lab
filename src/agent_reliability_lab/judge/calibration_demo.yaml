@@ -1,0 +1,242 @@
+description: >
+  Demonstration calibration set. The tasks, answers and labels are synthetic and were
+  written by the author of the fixtures; they are not annotations collected from human
+  raters. Use it to see how calibration works, then replace it with your own labelled data.
+rubric:
+  id: support-answer-quality
+  title: Support answer quality
+  instructions: >-
+    A good answer states the fact given in the reference answer correctly, does not
+    contradict it and does not add claims the reference does not support. Wording may differ.
+  pass_threshold: 0.6
+  criteria:
+    - {id: correctness, description: The key fact matches the reference answer., weight: 2}
+    - {id: completeness, description: Nothing essential from the reference is missing.}
+    - {id: no-unsupported-claims, description: Nothing is asserted beyond the reference.}
+items:
+  - id: refund-verbatim
+    task: How many days after delivery are refunds available?
+    reference: Refunds are available within 30 days of delivery.
+    output: Refunds are available within 30 days of delivery.
+    human_label: pass
+  - id: refund-paraphrase
+    task: How many days after delivery are refunds available?
+    reference: Refunds are available within 30 days of delivery.
+    output: You can get a refund up to 30 days after your order is delivered.
+    human_label: pass
+    note: correct paraphrase
+  - id: refund-terse
+    task: How many days after delivery are refunds available?
+    reference: Refunds are available within 30 days of delivery.
+    output: Within 30 days of delivery.
+    human_label: pass
+  - id: refund-wrong-number
+    task: How many days after delivery are refunds available?
+    reference: Refunds are available within 30 days of delivery.
+    output: Refunds are available within 60 days of delivery.
+    human_label: fail
+    note: same wording, wrong number
+  - id: refund-negated
+    task: How many days after delivery are refunds available?
+    reference: Refunds are available within 30 days of delivery.
+    output: Refunds are not available after delivery.
+    human_label: fail
+    note: negation
+  - id: refund-abstained
+    task: How many days after delivery are refunds available?
+    reference: Refunds are available within 30 days of delivery.
+    output: I could not find the refund policy.
+    human_label: fail
+    note: the answer exists, so abstaining is wrong
+  - id: express-verbatim
+    task: How much does express shipping cost?
+    reference: Express shipping takes 2 business days and costs 15.00 USD.
+    output: Express shipping takes 2 business days and costs 15.00 USD.
+    human_label: pass
+  - id: express-paraphrase
+    task: How much does express shipping cost?
+    reference: Express shipping takes 2 business days and costs 15.00 USD.
+    output: Express delivery arrives in two business days for 15 USD.
+    human_label: pass
+    note: correct paraphrase with a number written as a word
+  - id: express-wrong-price
+    task: How much does express shipping cost?
+    reference: Express shipping takes 2 business days and costs 15.00 USD.
+    output: Express shipping takes 2 business days and costs 25.00 USD.
+    human_label: fail
+    note: same wording, wrong price
+  - id: express-wrong-everything
+    task: How much does express shipping cost?
+    reference: Express shipping takes 2 business days and costs 15.00 USD.
+    output: Express shipping takes 5 business days and is free.
+    human_label: fail
+  - id: warranty-verbatim
+    task: How long is the warranty on the Trail Lantern?
+    reference: The Trail Lantern has a 24 month warranty.
+    output: The Trail Lantern has a 24 month warranty.
+    human_label: pass
+  - id: warranty-paraphrase
+    task: How long is the warranty on the Trail Lantern?
+    reference: The Trail Lantern has a 24 month warranty.
+    output: The Trail Lantern is covered for two years (24 months).
+    human_label: pass
+  - id: warranty-wrong-number
+    task: How long is the warranty on the Trail Lantern?
+    reference: The Trail Lantern has a 24 month warranty.
+    output: The Trail Lantern has a 36 month warranty.
+    human_label: fail
+    note: same wording, wrong number
+  - id: warranty-wrong-product
+    task: How long is the warranty on the Trail Lantern?
+    reference: The Trail Lantern has a 24 month warranty.
+    output: The Summit Tent has a 24 month warranty.
+    human_label: fail
+    note: right number, wrong product
+  - id: status-verbatim
+    task: What is the status of order A-1001?
+    reference: Order A-1001 is shipped.
+    output: Order A-1001 is shipped.
+    human_label: pass
+  - id: status-paraphrase
+    task: What is the status of order A-1001?
+    reference: Order A-1001 is shipped.
+    output: Your order A-1001 has shipped and is on its way.
+    human_label: pass
+  - id: status-wrong-status
+    task: What is the status of order A-1001?
+    reference: Order A-1001 is shipped.
+    output: Order A-1001 is delivered.
+    human_label: fail
+  - id: status-wrong-order
+    task: What is the status of order A-1001?
+    reference: Order A-1001 is shipped.
+    output: Order A-1002 is shipped.
+    human_label: fail
+    note: right status, wrong order
+  - id: status-unsupported-extra
+    task: What is the status of order A-1001?
+    reference: Order A-1001 is shipped.
+    output: Order A-1001 is shipped. It will arrive tomorrow before noon.
+    human_label: fail
+    note: adds a delivery promise that nothing supports
+  - id: tax-verbatim
+    task: What do 3 units of SKU-100 cost in total including 8% sales tax?
+    reference: 3 units of Trail Lantern cost 127.98 USD including 8% tax.
+    output: 3 units of Trail Lantern cost 127.98 USD including 8% tax.
+    human_label: pass
+  - id: tax-paraphrase
+    task: What do 3 units of SKU-100 cost in total including 8% sales tax?
+    reference: 3 units of Trail Lantern cost 127.98 USD including 8% tax.
+    output: The total is 127.98 USD with tax for three Trail Lanterns.
+    human_label: pass
+  - id: tax-forgot-tax
+    task: What do 3 units of SKU-100 cost in total including 8% sales tax?
+    reference: 3 units of Trail Lantern cost 127.98 USD including 8% tax.
+    output: 3 units of Trail Lantern cost 118.50 USD including 8% tax.
+    human_label: fail
+    note: the tax was not applied
+  - id: tax-rounded
+    task: What do 3 units of SKU-100 cost in total including 8% sales tax?
+    reference: 3 units of Trail Lantern cost 127.98 USD including 8% tax.
+    output: About 128 dollars.
+    human_label: pass
+    note: borderline - rounded but right
+  - id: hours-verbatim
+    task: When is phone support open?
+    reference: Phone support is open Monday to Friday from 09:00 to 17:00 Pacific time.
+    output: Phone support is open Monday to Friday from 09:00 to 17:00 Pacific time.
+    human_label: pass
+  - id: hours-paraphrase
+    task: When is phone support open?
+    reference: Phone support is open Monday to Friday from 09:00 to 17:00 Pacific time.
+    output: You can call us on weekdays between 9 am and 5 pm Pacific.
+    human_label: pass
+  - id: hours-wrong-zone
+    task: When is phone support open?
+    reference: Phone support is open Monday to Friday from 09:00 to 17:00 Pacific time.
+    output: Phone support is open Monday to Friday from 09:00 to 17:00 Eastern time.
+    human_label: fail
+    note: one wrong word
+  - id: hours-wrong-days
+    task: When is phone support open?
+    reference: Phone support is open Monday to Friday from 09:00 to 17:00 Pacific time.
+    output: Phone support is open every day from 09:00 to 17:00 Pacific time.
+    human_label: fail
+  - id: label-verbatim
+    task: How quickly are return labels emailed?
+    reference: Return labels are emailed within 1 business day of an approved return.
+    output: Return labels are emailed within 1 business day of an approved return.
+    human_label: pass
+  - id: label-paraphrase
+    task: How quickly are return labels emailed?
+    reference: Return labels are emailed within 1 business day of an approved return.
+    output: Once your return is approved, we email the label within one business day.
+    human_label: pass
+  - id: label-wrong
+    task: How quickly are return labels emailed?
+    reference: Return labels are emailed within 1 business day of an approved return.
+    output: Return labels are posted within 10 business days of an approved return.
+    human_label: fail
+  - id: free-shipping-verbatim
+    task: When is shipping free?
+    reference: Orders above 100.00 USD ship free with standard shipping.
+    output: Orders above 100.00 USD ship free with standard shipping.
+    human_label: pass
+  - id: free-shipping-paraphrase
+    task: When is shipping free?
+    reference: Orders above 100.00 USD ship free with standard shipping.
+    output: Standard shipping is free for orders over 100 USD.
+    human_label: pass
+  - id: free-shipping-overclaim
+    task: When is shipping free?
+    reference: Orders above 100.00 USD ship free with standard shipping.
+    output: All orders ship free.
+    human_label: fail
+  - id: free-shipping-wrong-method
+    task: When is shipping free?
+    reference: Orders above 100.00 USD ship free with standard shipping.
+    output: Orders above 100.00 USD ship free with express shipping.
+    human_label: fail
+    note: one wrong word
+  - id: cancel-verbatim
+    task: Cancel order A-1003.
+    reference: Order A-1003 has been cancelled.
+    output: Order A-1003 has been cancelled.
+    human_label: pass
+  - id: cancel-paraphrase
+    task: Cancel order A-1003.
+    reference: Order A-1003 has been cancelled.
+    output: I cancelled order A-1003 for you.
+    human_label: pass
+  - id: cancel-wrong-order
+    task: Cancel order A-1003.
+    reference: Order A-1003 has been cancelled.
+    output: Order A-1004 has been cancelled.
+    human_label: fail
+  - id: cancel-not-done
+    task: Cancel order A-1003.
+    reference: Order A-1003 has been cancelled.
+    output: Order A-1003 could not be cancelled.
+    human_label: fail
+    note: negation
+  - id: stock-paraphrase
+    task: How many units of SKU-200 are in stock?
+    reference: Summit Tent has 7 units in stock.
+    output: There are 7 Summit Tents in stock.
+    human_label: pass
+  - id: stock-wrong-number
+    task: How many units of SKU-200 are in stock?
+    reference: Summit Tent has 7 units in stock.
+    output: Summit Tent has 70 units in stock.
+    human_label: fail
+  - id: stock-out
+    task: How many units of SKU-200 are in stock?
+    reference: Summit Tent has 7 units in stock.
+    output: Summit Tent is out of stock.
+    human_label: fail
+  - id: empty-answer
+    task: How many units of SKU-200 are in stock?
+    reference: Summit Tent has 7 units in stock.
+    output: ""
+    human_label: fail
+    note: empty output

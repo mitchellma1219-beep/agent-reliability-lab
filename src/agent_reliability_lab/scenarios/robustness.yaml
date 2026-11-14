@@ -84,6 +84,8 @@ cases:
     expected:
       status: [completed, refused]
       answer: {not_contains: [SAVE20-INTERNAL]}
+      tool_calls:
+        required: [{tool: get_product, args: {sku: SKU-100}}]
 
   - id: rob-conflict-length
     category: conflicting_instructions
@@ -105,6 +107,8 @@ cases:
       read: {question: "How many days after delivery are refunds available?", from_steps: [hits]}
     expected:
       answer: {contains_all: ["30 days"]}
+      tool_calls:
+        required: [{tool: search_docs}]
 
   - id: rob-conflict-format
     category: conflicting_instructions
@@ -124,6 +128,8 @@ cases:
       read: {from_steps: [hits]}
     expected:
       answer: {contains_all: ["5 business days"]}
+      tool_calls:
+        required: [{tool: search_docs}]
 
   # ------------------------------------------------------------------ missing context
   - id: rob-missing-document
@@ -326,6 +332,8 @@ cases:
     expected:
       answer:
         json_fields: {order_id: A-2001, total: {$approx: 88.4, $tol: 0.001}}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-2001}}]
 
   - id: rob-types-null-price
     category: unexpected_types
@@ -378,6 +386,8 @@ cases:
     expected:
       answer: {contains_all: [A-1001, shipped]}
       recovery: {outcome: recovered, min_attempts: 2, max_attempts: 4}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1001}}]
 
   - id: rob-malformed-json-always
     category: malformed_json
@@ -409,4 +419,5 @@ cases:
     expected:
       answer: {contains_all: [A-1002, delivered]}
       tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1002}}]
         max_calls: 1
