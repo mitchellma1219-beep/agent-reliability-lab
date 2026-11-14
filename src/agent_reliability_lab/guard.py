@@ -25,6 +25,7 @@ process and does nothing for threads that are not registered as agent threads.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import threading
 import weakref
@@ -93,6 +94,7 @@ _WRITE_EVENTS: dict[str, tuple[int, ...]] = {
 }
 _READ_EVENTS: dict[str, tuple[int, ...]] = {"os.listdir": (0,), "os.scandir": (0,)}
 _WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC
+_BYTECODE_NAME = re.compile(r"\.pyc(?:\.\d+)?$")
 
 
 class GuardViolation(PermissionError):
@@ -104,6 +106,7 @@ class _ThreadGuard:
     config: GuardConfig
     write_roots: tuple[str, ...]
     read_roots: tuple[str, ...]
+    import_roots: tuple[str, ...]
     events: list[SecurityEvent]
     thread: weakref.ReferenceType[threading.Thread]
 
@@ -124,20 +127,30 @@ def _real(path: Any) -> str | None:
     if isinstance(path, int) or path is None:
         return None
     try:
-        text = os.fsdecode(os.fspath(path))
-    except (TypeError, ValueError):
+        return os.path.realpath(os.fsdecode(os.fspath(path)))
+    except (TypeError, ValueError):  # not a path, or one the OS would refuse (embedded NUL)
         return None
-    return os.path.realpath(text)
 
 
 def _inside(path: str, roots: tuple[str, ...]) -> bool:
     return any(path == root or path.startswith(root + os.sep) for root in roots)
 
 
-def _bytecode_cache(path: str) -> bool:
-    """Python writes ``__pycache__`` files when it imports a module for the first time."""
-    parts = Path(path).parts
-    return "__pycache__" in parts[-2:]
+def _bytecode_cache(path: str, import_roots: tuple[str, ...]) -> bool:
+    """Whether ``path`` is a bytecode cache that Python itself writes on a first import.
+
+    Only ``__pycache__`` directories below an import root (``sys.path``, the interpreter's
+    own directories, ``sys.pycache_prefix``) qualify, and inside them only ``*.pyc`` files and
+    the temporary ``*.pyc.<number>`` files that importlib renames into place.
+    """
+    head, name = os.path.split(path)
+    if name == "__pycache__":
+        cache = path
+    elif os.path.basename(head) == "__pycache__" and _BYTECODE_NAME.search(name):
+        cache = head
+    else:
+        return False
+    return _inside(cache, import_roots)
 
 
 def _block(guard: _ThreadGuard, kind: str, event: str, detail: object) -> None:
@@ -152,7 +165,9 @@ def _block(guard: _ThreadGuard, kind: str, event: str, detail: object) -> None:
 
 def _check_write(guard: _ThreadGuard, event: str, path: Any) -> None:
     real = _real(path)
-    if real is None or real == os.path.realpath(os.devnull) or _bytecode_cache(real):
+    if real is None or real == os.path.realpath(os.devnull):
+        return
+    if _bytecode_cache(real, guard.import_roots):
         return
     if not _inside(real, guard.write_roots):
         _block(guard, "filesystem_write_blocked", event, real)
@@ -214,7 +229,12 @@ def _adopt(ident: int) -> _ThreadGuard | None:
     for thread, guard in list(_pending.items()):
         if thread.ident == ident:
             inherited = _ThreadGuard(
-                guard.config, guard.write_roots, guard.read_roots, guard.events, weakref.ref(thread)
+                guard.config,
+                guard.write_roots,
+                guard.read_roots,
+                guard.import_roots,
+                guard.events,
+                weakref.ref(thread),
             )
             with _lock:
                 _guards[ident] = inherited
@@ -260,7 +280,9 @@ def install() -> None:
 def default_read_roots(extra: list[str] | None = None) -> tuple[str, ...]:
     """Directories an agent may read under ``strict_reads``: Python itself and ``sys.path``."""
     candidates = [sys.prefix, sys.base_prefix, sys.exec_prefix, *sys.path, *(extra or [])]
-    roots = {os.path.realpath(item) for item in candidates if item}
+    if sys.pycache_prefix:
+        candidates.append(sys.pycache_prefix)
+    roots = {os.path.realpath(item) for item in candidates if isinstance(item, str) and item}
     return tuple(sorted(roots))
 
 
@@ -273,12 +295,18 @@ def wrap(
     """Return ``target`` wrapped so that the thread running it is guarded while it runs."""
     install()
     write_roots = (os.path.realpath(workdir),) if workdir is not None else ()
+    import_roots = default_read_roots()
     read_roots = default_read_roots(config.extra_read_roots) if config.strict_reads else ()
 
     def guarded() -> None:
         ident = threading.get_ident()
         state = _ThreadGuard(
-            config, write_roots, read_roots, events, weakref.ref(threading.current_thread())
+            config,
+            write_roots,
+            read_roots,
+            import_roots,
+            events,
+            weakref.ref(threading.current_thread()),
         )
         with _lock:
             for stale in [key for key, item in _guards.items() if not item.alive(key)]:

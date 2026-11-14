@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import shutil
+import string
 import tempfile
 import threading
 import time
@@ -87,7 +88,7 @@ def _execute(
             outcome.abort = exc
         except SystemExit:
             outcome.exited = True
-        except Exception as exc:
+        except BaseException as exc:  # KeyboardInterrupt and friends must not look like "no answer"
             outcome.error = exc
 
     body = wrap(target) if wrap is not None else target
@@ -269,8 +270,12 @@ def run_case(
     )
 
 
+_SLUG_CHARS = frozenset(string.ascii_letters + string.digits + "._-")
+
+
 def _slug(text: str) -> str:
-    cleaned = "".join(char if char.isalnum() or char in "._-" else "-" for char in text)
+    """ASCII-only identifier part. ``str.isalnum`` would let non-ASCII letters through."""
+    cleaned = "".join(char if char in _SLUG_CHARS else "-" for char in text)
     return cleaned.strip("-.") or "x"
 
 

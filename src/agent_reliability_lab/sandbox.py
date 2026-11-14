@@ -289,6 +289,7 @@ class Sandbox:
     def annotate(self, key: str, value: Any) -> None:
         """Attach a small piece of agent-supplied metadata to the trace."""
         with self._lock:
+            self._check_open()
             if len(self.annotations) < 50 or key in self.annotations:
                 self.annotations[str(key)[:100]] = json.loads(json.dumps(value, default=str))
 
