@@ -2,9 +2,9 @@
 
 This is a lexical check, not an entailment model. A sentence counts as supported when enough
 of its content words and numbers occur somewhere in the evidence, and at least one single
-passage covers a reasonable share of them. It catches answers that drift away from the
-sources; it does not understand negation or attribution. See
-``docs/evaluator-limitations.md``.
+passage covers a reasonable share of them. A statement whose closest evidence differs in
+negation ("are available" against "are not available") is flagged as well. Beyond that the
+check does not understand meaning or attribution. See ``docs/evaluator-limitations.md``.
 """
 
 from __future__ import annotations
@@ -27,6 +27,13 @@ _META = re.compile(
     r"no further action|nothing was changed|completed before the failure|let me know)",
     re.IGNORECASE,
 )
+
+
+_NEGATION = re.compile(r"\b(?:not|no|never|cannot|without|neither|nor|none)\b|n't\b", re.IGNORECASE)
+
+
+def negated(text: str) -> bool:
+    return bool(_NEGATION.search(text))
 
 
 def claims(output: str, ignore: list[str]) -> list[tuple[str, list[str]]]:
@@ -57,9 +64,8 @@ class Groundedness:
         if check is None:
             return verdict(self.name, [])
         passages = collect(case, trace, ctx.context)
-        pieces = [
-            (piece.source, set(content_tokens(piece.text))) for piece in sentence_passages(passages)
-        ]
+        texts = sentence_passages(passages)
+        pieces = [(piece.source, set(content_tokens(piece.text))) for piece in texts]
         everything: set[str] = set().union(*(tokens for _, tokens in pieces)) if pieces else set()
         sources = known_sources(trace, ctx.context)
 
@@ -70,8 +76,17 @@ class Groundedness:
         for text, cited in found:
             tokens = set(content_tokens(text))
             coverage = overlap(tokens, everything)
-            best = max((overlap(tokens, piece) for _, piece in pieces), default=0.0)
+            scores = [overlap(tokens, piece) for _, piece in pieces]
+            best = max(scores, default=0.0)
             ok = coverage >= check.token_threshold and best >= check.passage_threshold
+            if ok and negated(text) != negated(texts[scores.index(best)].text):
+                ok = False
+                findings.append(
+                    finding(
+                        "polarity_mismatch",
+                        f"the statement {text[:120]!r} and its closest evidence differ in negation",
+                    )
+                )
             unknown = sorted(set(cited) - sources)
             if unknown:
                 ok = False

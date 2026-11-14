@@ -2,7 +2,8 @@
 
 Four kinds of "atoms" are extracted from the output and looked up in the evidence:
 
-* **numbers** (a number counts as supported if it is a rounding of a number in the evidence);
+* **numbers** (a number counts as supported if it is a rounding of a number in the evidence;
+  bare integers up to ten are skipped as counts unless a unit such as "days" or "%" follows);
 * **identifiers** such as ``A-1001`` or ``SKU-100`` (tokens mixing letters and digits);
 * **addresses**: e-mail addresses and URLs;
 * **claimed actions**: sentences such as "the refund has been issued" when no successful
@@ -28,6 +29,11 @@ _IDENTIFIER = re.compile(
 _UNIT_SUFFIX = re.compile(r"^\d+(?:st|nd|rd|th|[a-z]{1,2})$", re.IGNORECASE)
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _URL = re.compile(r"https?://[^\s<>\")\]]+", re.IGNORECASE)
+_UNIT = re.compile(
+    r"\s?(?:%|percent\b|(?:business |calendar |working )?(?:day|week|month|year|hour|minute|"
+    r"second)s?\b|(?:usd|eur|gbp|ms)\b|dollars?\b|euros?\b)",
+    re.IGNORECASE,
+)
 _LIST_MARKER = re.compile(r"^\s*\d{1,3}[.)]\s+", re.MULTILINE)
 _NEGATION = re.compile(
     r"\b(?:not|never|no|cannot|unable|failed|without|pending|will|would|can|could|should|"
@@ -36,9 +42,9 @@ _NEGATION = re.compile(
 )
 
 
-def _numbers(text: str) -> list[tuple[float, int, str]]:
-    """(value, number of decimals, original text) for each number in ``text``."""
-    found: list[tuple[float, int, str]] = []
+def _numbers(text: str) -> list[tuple[float, int, str, bool]]:
+    """(value, decimals, original text, has a unit) for each number in ``text``."""
+    found: list[tuple[float, int, str, bool]] = []
     for match in _NUMBER.finditer(text):
         raw = match.group(0).replace(",", "")
         try:
@@ -46,7 +52,8 @@ def _numbers(text: str) -> list[tuple[float, int, str]]:
         except ValueError:
             continue
         decimals = len(raw.split(".")[1]) if "." in raw else 0
-        found.append((value, decimals, match.group(0)))
+        unit = bool(_UNIT.match(text[match.end() : match.end() + 24]))
+        found.append((value, decimals, match.group(0), unit))
     return found
 
 
@@ -95,9 +102,9 @@ class Hallucination:
                     )
 
         if check.check_numbers:
-            source_numbers = [value for value, _, _ in _numbers(_strip_addresses(evidence))]
-            for value, decimals, raw in dict.fromkeys(_numbers(_IDENTIFIER.sub(" ", body))):
-                if decimals == 0 and 0 <= value <= check.ignore_integers_up_to:
+            source_numbers = [item[0] for item in _numbers(_strip_addresses(evidence))]
+            for value, decimals, raw, unit in dict.fromkeys(_numbers(_IDENTIFIER.sub(" ", body))):
+                if decimals == 0 and 0 <= value <= check.ignore_integers_up_to and not unit:
                     continue
                 atoms += 1
                 if raw.casefold() in allowed:
