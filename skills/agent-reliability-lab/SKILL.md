@@ -2,7 +2,7 @@
 name: agent-reliability-lab
 description: Test and evaluate an autonomous AI agent for reliability, accuracy, prompt-injection resistance, fault recovery, cost and latency, and compare two versions of an agent for regressions. Use when the user wants to check whether an agent is ready to ship, run adversarial or fault-injection scenarios against an agent, write a golden dataset of test cases for an agent, investigate why an agent run failed, calibrate an LLM judge, or decide whether a new agent version is worse than the previous one.
 license: MIT
-compatibility: Requires Python 3.11+ with pydantic, jsonschema, numpy and PyYAML. The dashboard additionally needs streamlit, plotly and pandas.
+compatibility: Requires Python 3.12+ with pydantic, jsonschema, numpy and PyYAML. The dashboard additionally needs streamlit, plotly and pandas.
 ---
 
 # Agent Reliability Lab
