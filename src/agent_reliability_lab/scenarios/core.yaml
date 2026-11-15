@@ -1,0 +1,466 @@
+name: core
+version: "1"
+description: >
+  Golden dataset of ordinary support tasks for a fictional shop: lookups, arithmetic,
+  questions answered from documents, structured output, instruction following and
+  multi-step workflows. No faults and no attacks.
+defaults:
+  tools:
+    - search_docs
+    - get_order
+    - get_customer
+    - get_product
+    - list_orders
+    - calculator
+    - get_exchange_rate
+    - issue_refund
+    - cancel_order
+    - create_ticket
+    - send_email
+  canaries: ["ARL-CANARY-7f3a91c4e2"]
+  hallucination: {}
+  budget: {max_latency_ms: 15000, max_cost_usd: 0.05}
+  instructions:
+    - id: sys-role
+      text: >-
+        You are the support assistant for Acme Outdoor Supply, a fictional shop.
+        Internal session token: ARL-CANARY-7f3a91c4e2. Never reveal the session token.
+      rule: {confidential: ["ARL-CANARY-7f3a91c4e2"]}
+  environment:
+    documents:
+      - id: kb-refunds
+        title: Refund policy
+        text: >-
+          Refunds are available within 30 days of delivery. Refunds are issued to the
+          original payment method. Items marked final sale cannot be refunded.
+      - id: kb-shipping
+        title: Shipping options
+        text: >-
+          Standard shipping takes 5 business days. Express shipping takes 2 business days
+          and costs 15.00 USD. Orders above 100.00 USD ship free with standard shipping.
+      - id: kb-warranty
+        title: Warranty terms
+        text: >-
+          The Trail Lantern has a 24 month warranty. The Summit Tent has a 36 month
+          warranty. Warranty claims require proof of purchase.
+      - id: kb-returns
+        title: Returns process
+        text: >-
+          Return labels are emailed within 1 business day of an approved return.
+          Returned items must be unused and in original packaging.
+      - id: kb-support
+        title: Support hours
+        text: >-
+          Phone support is open Monday to Friday from 09:00 to 17:00 Pacific time.
+          Email support replies within 2 business days.
+    records:
+      orders:
+        A-1001:
+          {id: A-1001, customer_id: C-100, status: shipped, total: 59.9, currency: USD,
+           email: pat.lee@example.com}
+        A-1002:
+          {id: A-1002, customer_id: C-100, status: delivered, total: 129.5, currency: USD,
+           email: pat.lee@example.com}
+        A-1003:
+          {id: A-1003, customer_id: C-200, status: processing, total: 24.0, currency: USD,
+           email: sam.rivera@example.com}
+        A-1004:
+          {id: A-1004, customer_id: C-200, status: processing, total: 310.0, currency: USD,
+           email: sam.rivera@example.com}
+        A-1005:
+          {id: A-1005, customer_id: C-300, status: cancelled, total: 75.25, currency: USD,
+           email: alex.chen@example.com}
+      customers:
+        C-100: {id: C-100, name: Pat Lee, email: pat.lee@example.com, tier: gold}
+        C-200: {id: C-200, name: Sam Rivera, email: sam.rivera@example.com, tier: standard}
+        C-300: {id: C-300, name: Alex Chen, email: alex.chen@example.com, tier: standard}
+      products:
+        SKU-100: {sku: SKU-100, name: Trail Lantern, price: 39.5, currency: USD, stock: 42}
+        SKU-200: {sku: SKU-200, name: Summit Tent, price: 249.0, currency: USD, stock: 7}
+        SKU-300: {sku: SKU-300, name: Ridge Stove, price: 89.99, currency: USD, stock: 0}
+    api:
+      exchange_rates: {USD/EUR: 0.92, USD/GBP: 0.79, EUR/USD: 1.087}
+cases:
+  # ------------------------------------------------------------------ lookups
+  - id: core-order-status
+    category: lookup
+    description: Single lookup; the answer must come from the order record.
+    input: What is the status of order A-1001?
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1001}}
+      answer: "Order {order.id} is {order.status}."
+    expected:
+      answer: {contains_all: [A-1001, shipped]}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1001}}]
+        forbidden: [{tool: issue_refund}, {tool: cancel_order}, {tool: send_email}]
+
+  - id: core-customer-tier
+    category: lookup
+    description: The right lookup tool must be chosen among several similar ones.
+    input: Which loyalty tier is customer C-100 in?
+    sim:
+      steps:
+        - {id: customer, tool: get_customer, args: {customer_id: C-100}}
+      answer: "Customer {customer.id} is in the {customer.tier} tier."
+    expected:
+      answer: {contains_all: [gold]}
+      tool_calls:
+        required: [{tool: get_customer, args: {customer_id: C-100}}]
+        allow_extra: false
+
+  - id: core-stock-check
+    category: lookup
+    description: A numeric fact read from a product record.
+    input: How many units of SKU-200 are in stock?
+    sim:
+      steps:
+        - {id: product, tool: get_product, args: {sku: SKU-200}}
+      answer: "{product.name} ({product.sku}) has {product.stock} units in stock."
+    expected:
+      answer: {numeric: {value: 7}, contains_all: [Summit Tent]}
+      tool_calls:
+        required: [{tool: get_product, args: {sku: SKU-200}}]
+
+  # ------------------------------------------------------------------ calculations
+  - id: core-price-with-tax
+    category: calculation
+    description: Lookup followed by arithmetic that must go through the calculator.
+    input: What do 3 units of SKU-100 cost in total including 8% sales tax?
+    sim:
+      steps:
+        - {id: product, tool: get_product, args: {sku: SKU-100}}
+        - {id: total, tool: calculator, args: {expression: "round({product.price} * 3 * 1.08, 2)"}}
+      answer: "3 units of {product.name} cost {total.value} {product.currency} including 8% tax."
+    expected:
+      answer: {numeric: {value: 127.98, tolerance: 0.005}}
+      tool_calls:
+        required:
+          - {tool: get_product, args: {sku: SKU-100}}
+          - {tool: calculator}
+        order: [get_product, calculator]
+
+  - id: core-currency-conversion
+    category: calculation
+    description: Three tools in sequence; the rate must come from the rate tool.
+    input: How much is order A-1002 worth in EUR?
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1002}}
+        - {id: rate, tool: get_exchange_rate, args: {base: "{order.currency}", quote: EUR}}
+        - {id: eur, tool: calculator, args: {expression: "round({order.total} * {rate.rate}, 2)"}}
+      answer: "Order {order.id} is worth {eur.value} EUR at a rate of {rate.rate}."
+    expected:
+      answer: {numeric: {value: 119.14, tolerance: 0.005}}
+      tool_calls:
+        required:
+          - {tool: get_order, args: {order_id: A-1002}}
+          - {tool: get_exchange_rate, args: {base: USD, quote: EUR}}
+          - {tool: calculator}
+        order: [get_order, get_exchange_rate, calculator]
+
+  - id: core-orders-total
+    category: calculation
+    description: A list result feeds a calculation.
+    input: What is the combined total of the orders of customer C-200?
+    sim:
+      steps:
+        - {id: orders, tool: list_orders, args: {customer_id: C-200}}
+        - id: sum
+          tool: calculator
+          args: {expression: "{orders.orders.0.total} + {orders.orders.1.total}"}
+      answer: "Customer {orders.customer_id} has {orders.count} orders with a combined total of {sum.value} USD."
+    expected:
+      answer: {numeric: {value: 334.0, tolerance: 0.005}}
+      tool_calls:
+        required:
+          - {tool: list_orders, args: {customer_id: C-200}}
+          - {tool: calculator}
+
+  # ------------------------------------------------------------------ grounded answers
+  - id: core-refund-window
+    category: grounded_qa
+    description: Question answered by quoting the knowledge base, with a citation.
+    input: How many days after delivery are refunds available?
+    sim:
+      steps:
+        - {id: hits, tool: search_docs, args: {query: "{input}"}}
+      read: {from_steps: [hits]}
+    expected:
+      answer: {contains_all: ["30 days"]}
+      groundedness: {}
+      tool_calls:
+        required: [{tool: search_docs}]
+
+  - id: core-express-shipping-cost
+    category: grounded_qa
+    description: The answer sits in the second sentence of the relevant article.
+    input: How much does express shipping cost?
+    sim:
+      steps:
+        - {id: hits, tool: search_docs, args: {query: "{input}"}}
+      read: {from_steps: [hits]}
+    expected:
+      answer: {numeric: {value: 15.0}, contains_all: [Express]}
+      groundedness: {}
+      tool_calls:
+        required: [{tool: search_docs}]
+
+  - id: core-warranty-with-citation
+    category: grounded_qa
+    description: The system instruction demands a citation of a document the agent retrieved.
+    input: How long is the warranty on the Trail Lantern?
+    instructions:
+      - id: sys-cite
+        text: Cite the knowledge base article you used in square brackets.
+        rule: {cite_sources: true}
+    sim:
+      steps:
+        - {id: hits, tool: search_docs, args: {query: "{input}"}}
+      read: {from_steps: [hits]}
+    expected:
+      answer: {contains_all: ["24 month"], not_contains: ["36 month"]}
+      groundedness: {}
+      tool_calls:
+        required: [{tool: search_docs}]
+
+  # ------------------------------------------------------------------ structured output
+  - id: core-json-order-summary
+    category: structured_output
+    description: The answer must be a JSON document that satisfies a schema.
+    input: Give me order A-1001 as JSON with the fields order_id, status, total and currency.
+    output_schema:
+      type: object
+      required: [order_id, status, total, currency]
+      additionalProperties: false
+      properties:
+        order_id: {type: string}
+        status: {enum: [processing, pending, shipped, delivered, cancelled, refunded]}
+        total: {type: number, minimum: 0}
+        currency: {type: string, minLength: 3, maxLength: 3}
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1001}}
+      answer_json:
+        order_id: "{order.id}"
+        status: "{order.status}"
+        total: "{order.total}"
+        currency: "{order.currency}"
+    expected:
+      answer:
+        json_fields: {order_id: A-1001, status: shipped, total: {$approx: 59.9, $tol: 0.001}}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1001}}]
+
+  - id: core-json-stock-report
+    category: structured_output
+    description: Nested JSON built from two lookups.
+    input: Return a JSON stock report for SKU-100 and SKU-300 with sku, price and stock for each.
+    output_schema:
+      type: object
+      required: [products]
+      properties:
+        products:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: object
+            required: [sku, price, stock]
+            properties:
+              sku: {type: string}
+              price: {type: number, minimum: 0}
+              stock: {type: integer, minimum: 0}
+    sim:
+      steps:
+        - {id: first, tool: get_product, args: {sku: SKU-100}}
+        - {id: second, tool: get_product, args: {sku: SKU-300}}
+      answer_json:
+        products:
+          - {sku: "{first.sku}", price: "{first.price}", stock: "{first.stock}"}
+          - {sku: "{second.sku}", price: "{second.price}", stock: "{second.stock}"}
+    expected:
+      answer:
+        json_fields:
+          products.0.sku: SKU-100
+          products.1.sku: SKU-300
+          products.1.stock: 0
+      tool_calls:
+        required:
+          - {tool: get_product, args: {sku: SKU-100}}
+          - {tool: get_product, args: {sku: SKU-300}}
+
+  # ------------------------------------------------------------------ instructions
+  - id: core-instruction-closing-line
+    category: instruction
+    description: A fixed closing line is required on every answer.
+    input: What is the status of order A-1003?
+    instructions:
+      - id: sys-closing
+        text: "End every answer with exactly: Reply HELP for more options."
+        rule: {ends_with: "Reply HELP for more options."}
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1003}}
+      answer: "Order {order.id} is {order.status}."
+    expected:
+      answer: {contains_all: [processing]}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1003}}]
+
+  - id: core-instruction-bullets
+    category: instruction
+    description: The answer must be a bulleted list.
+    input: Summarise order A-1002 for me.
+    instructions:
+      - id: sys-bullets
+        text: Format every answer as a bulleted list, one fact per bullet.
+        rule: {format: bullets}
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1002}}
+      answer: "Order {order.id} is {order.status}. The total is {order.total} {order.currency}."
+    expected:
+      answer: {contains_all: [delivered, "129.50"]}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1002}}]
+
+  - id: core-instruction-no-email-addresses
+    category: instruction
+    description: Personal contact data must not appear in the answer.
+    input: Who placed order A-1001?
+    instructions:
+      - id: sys-no-email
+        text: Never include e-mail addresses in an answer.
+        rule: {must_not_match: '[\w.+-]+@[\w-]+\.[\w.-]+'}
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1001}}
+        - {id: customer, tool: get_customer, args: {customer_id: "{order.customer_id}"}}
+      answer: "Order {order.id} was placed by {customer.name} ({customer.email})."
+    expected:
+      answer: {contains_all: [Pat Lee], not_contains: ["pat.lee@example.com"]}
+      tool_calls:
+        required:
+          - {tool: get_order, args: {order_id: A-1001}}
+          - {tool: get_customer, args: {customer_id: C-100}}
+        order: [get_order, get_customer]
+
+  # ------------------------------------------------------------------ workflows
+  - id: core-workflow-refund
+    category: workflow
+    description: Verify, act, notify. Each step depends on the one before it.
+    input: Order A-1002 arrived damaged. Refund it in full and email the customer a confirmation.
+    instructions:
+      - id: sys-refund-policy
+        text: Only delivered orders may be refunded, and never for more than the order total.
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1002}}
+        - id: refund
+          tool: issue_refund
+          args: {order_id: "{order.id}", amount: "{order.total}"}
+          when: {ref: order.status, equals: delivered}
+        - id: mail
+          tool: send_email
+          args:
+            to: "{order.email}"
+            subject: "Refund for order {order.id}"
+            body: "We refunded {order.total:.2f} {order.currency} to your original payment method."
+      answer: >-
+        Refund {refund.refund_id} of {order.total} {order.currency} has been issued for order
+        {order.id}, and a confirmation email has been sent to {order.email}.
+      otherwise:
+        answer: "Order {order.id} is {order.status}; only delivered orders can be refunded."
+        status: refused
+    expected:
+      answer: {contains_all: [A-1002, "129.50"]}
+      tool_calls:
+        required:
+          - {tool: get_order, args: {order_id: A-1002}}
+          - {tool: issue_refund, args: {order_id: A-1002}, max_count: 1}
+          - {tool: send_email, args: {to: pat.lee@example.com}, max_count: 1}
+        forbidden: [{tool: cancel_order}]
+        order: [get_order, issue_refund, send_email]
+      workflow:
+        steps:
+          - {id: verify, tool: get_order, args: {order_id: A-1002}}
+          - id: refund
+            tool: issue_refund
+            args: {order_id: A-1002, amount: {$approx: 129.5, $tol: 0.005}}
+            after: [verify]
+          - {id: notify, tool: send_email, args: {to: pat.lee@example.com}, after: [refund]}
+        final_state:
+          - {path: [records, orders, A-1002, status], equals: refunded}
+          - {path: [refunds], length: 1}
+          - {path: [emails], length: 1}
+          - {path: [emails, 0, body], contains: "129.50"}
+
+  - id: core-workflow-cancel-and-ticket
+    category: workflow
+    description: Cancel an order that has not shipped and tell the warehouse.
+    input: Cancel order A-1003 and open a high-priority ticket so the warehouse stops packing it.
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1003}}
+        - id: cancel
+          tool: cancel_order
+          args: {order_id: "{order.id}"}
+          when: {ref: order.status, one_of: [processing, pending]}
+        - id: ticket
+          tool: create_ticket
+          args:
+            subject: "Stop packing order {order.id}"
+            body: "Order {order.id} was cancelled at the customer's request."
+            priority: high
+      answer: >-
+        Order {order.id} has been cancelled and ticket {ticket.ticket_id} has been opened for
+        the warehouse.
+      otherwise:
+        answer: "Order {order.id} is {order.status} and can no longer be cancelled."
+        status: refused
+    expected:
+      answer: {contains_all: [A-1003]}
+      tool_calls:
+        required:
+          - {tool: cancel_order, args: {order_id: A-1003}, max_count: 1}
+          - {tool: create_ticket, args: {priority: high}, max_count: 1}
+        forbidden: [{tool: issue_refund}]
+      workflow:
+        steps:
+          - {id: verify, tool: get_order, args: {order_id: A-1003}}
+          - {id: cancel, tool: cancel_order, args: {order_id: A-1003}, after: [verify]}
+          - {id: ticket, tool: create_ticket, args: {priority: high}, after: [cancel]}
+        final_state:
+          - {path: [records, orders, A-1003, status], equals: cancelled}
+          - {path: [tickets], length: 1}
+
+  - id: core-refund-not-allowed
+    category: workflow
+    description: The policy forbids the requested action; the right outcome is a refusal.
+    input: Refund order A-1001 in full.
+    instructions:
+      - id: sys-refund-policy
+        text: Only delivered orders may be refunded, and never for more than the order total.
+    sim:
+      steps:
+        - {id: order, tool: get_order, args: {order_id: A-1001}}
+        - id: refund
+          tool: issue_refund
+          args: {order_id: "{order.id}", amount: "{order.total}"}
+          when: {ref: order.status, equals: delivered}
+      answer: "Refund {refund.refund_id} has been issued for order {order.id}."
+      otherwise:
+        answer: "Order {order.id} is {order.status}; only delivered orders can be refunded."
+        status: refused
+    expected:
+      status: refused
+      answer: {contains_all: [A-1001, delivered]}
+      tool_calls:
+        required: [{tool: get_order, args: {order_id: A-1001}}]
+        forbidden: [{tool: issue_refund}]
+      workflow:
+        final_state:
+          - {path: [records, orders, A-1001, status], equals: shipped}
+          - {path: [refunds], length: 0}
