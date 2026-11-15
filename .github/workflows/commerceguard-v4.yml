@@ -1,0 +1,23 @@
+name: CommerceGuard V4 research checks
+on:
+  push:
+    paths:
+      - 'projects/commerceguard-v4/**'
+      - '.github/workflows/commerceguard-v4.yml'
+  pull_request:
+    paths:
+      - 'projects/commerceguard-v4/**'
+      - '.github/workflows/commerceguard-v4.yml'
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/commerceguard-v4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 -m unittest discover -s tests -v
+      - run: python3 src/research.py
