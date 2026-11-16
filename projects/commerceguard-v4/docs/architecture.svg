@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="627" viewBox="0 0 1200 627" font-family="Inter, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748B"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#C2410C"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="627" fill="#FAFAF7"/>
+
+  <!-- Header -->
+  <text x="56" y="60" font-size="13" font-weight="600" letter-spacing="1.6" fill="#64748B">MULTI-AGENT DECISION WORKFLOW · PYTHON · MARKETING ANALYTICS</text>
+  <text x="56" y="110" font-size="44" font-weight="700" fill="#0F172A">CommerceGuard</text>
+  <text x="56" y="146" font-size="19" fill="#334155">Four agents review Facebook and Google Ads spend and propose a budget shift.</text>
+  <text x="56" y="172" font-size="19" fill="#334155">An independent auditor rejects any proposal that breaks the rules.</text>
+
+  <!-- Input -->
+  <rect x="56" y="200" width="1088" height="40" rx="8" fill="#EEF2F6"/>
+  <text x="76" y="225" font-size="14" font-weight="700" letter-spacing="1" fill="#475569">INPUT</text>
+  <text x="140" y="225" font-size="15" fill="#334155">Weekly spend and conversions per channel · 52 weeks of public 2019 Facebook + Google Ads data</text>
+  <line x1="180" y1="240" x2="180" y2="270" stroke="#64748B" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Agent cards -->
+  <g filter="url(#shadow)">
+    <rect x="56" y="275" width="248" height="140" rx="12" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <rect x="336" y="275" width="248" height="140" rx="12" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <rect x="616" y="275" width="248" height="140" rx="12" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <rect x="896" y="275" width="248" height="140" rx="12" fill="#FFF7ED" stroke="#EA580C" stroke-width="1.5"/>
+  </g>
+
+  <g font-size="15" fill="#374151">
+    <circle cx="84" cy="307" r="15" fill="#1D4ED8"/>
+    <text x="84" y="312" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+    <text x="108" y="313" font-size="19" font-weight="700" fill="#0F172A">Data Analyst</text>
+    <text x="76" y="350">Forecasts conversions per</text>
+    <text x="76" y="372">dollar for each channel,</text>
+    <text x="76" y="394">using past weeks only</text>
+
+    <circle cx="364" cy="307" r="15" fill="#1D4ED8"/>
+    <text x="364" y="312" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+    <text x="388" y="313" font-size="19" font-weight="700" fill="#0F172A">Strategy Planner</text>
+    <text x="356" y="350">Proposes shifting budget</text>
+    <text x="356" y="372">toward the channel with</text>
+    <text x="356" y="394">better forecast efficiency</text>
+
+    <circle cx="644" cy="307" r="15" fill="#1D4ED8"/>
+    <text x="644" y="312" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+    <text x="668" y="313" font-size="19" font-weight="700" fill="#0F172A">Scenario Simulator</text>
+    <text x="636" y="350">Stress-tests the proposal</text>
+    <text x="636" y="372">under three different</text>
+    <text x="636" y="394">response assumptions</text>
+
+    <circle cx="924" cy="307" r="15" fill="#EA580C"/>
+    <text x="924" y="312" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">4</text>
+    <text x="946" y="313" font-size="18" font-weight="700" fill="#0F172A">Independent Auditor</text>
+    <text x="916" y="350">Hard rules: max 10% shift,</text>
+    <text x="916" y="372">budget conserved, no future</text>
+    <text x="916" y="394">data, valid inputs</text>
+  </g>
+
+  <!-- Forward arrows -->
+  <line x1="305" y1="345" x2="333" y2="345" stroke="#64748B" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="585" y1="345" x2="613" y2="345" stroke="#64748B" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="865" y1="345" x2="893" y2="345" stroke="#64748B" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Feedback loop: auditor back to planner -->
+  <path d="M950,416 L950,452 L460,452 L460,420" fill="none" stroke="#C2410C" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowOrange)"/>
+  <rect x="548" y="440" width="316" height="24" rx="4" fill="#FAFAF7"/>
+  <text x="706" y="457" font-size="14" font-weight="600" fill="#C2410C" text-anchor="middle">Rejected → back to planner with reasons</text>
+
+  <!-- Output -->
+  <line x1="1080" y1="416" x2="1080" y2="476" stroke="#64748B" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="896" y="480" width="248" height="46" rx="8" fill="#0F172A"/>
+  <text x="1020" y="500" font-size="13" font-weight="700" letter-spacing="1" fill="#94A3B8" text-anchor="middle">OUTPUT</text>
+  <text x="1020" y="518" font-size="14" fill="#FFFFFF" text-anchor="middle">Read-only report for human review</text>
+
+  <!-- Evidence chips -->
+  <g font-size="15" font-weight="600" fill="#0F172A">
+    <rect x="56" y="484" width="252" height="38" rx="19" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="182" y="508" text-anchor="middle">40-week walk-forward backtest</text>
+    <rect x="322" y="484" width="214" height="38" rx="19" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="429" y="508" text-anchor="middle">17 automated tests in CI</text>
+    <rect x="550" y="484" width="224" height="38" rx="19" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="662" y="508" text-anchor="middle">0 writes to ad accounts</text>
+  </g>
+
+  <!-- Footer -->
+  <line x1="56" y1="562" x2="1144" y2="562" stroke="#E2E8F0"/>
+  <text x="56" y="594" font-size="15" fill="#475569">github.com/mitchellma1219-beep/agent-reliability-lab · projects/commerceguard-v4</text>
+  <text x="1144" y="594" font-size="15" font-weight="600" fill="#0F172A" text-anchor="end">Jiajun (Mitchell) Ma</text>
+</svg>

@@ -82,6 +82,14 @@ means the input was rejected, with the reason on stderr.
 - The LLM judge sends data to an external API and costs money; it runs only with
   `--allow-llm-judge`, and verdicts it is unsure about are kept out of pass rates.
 
+## Related project: CommerceGuard
+
+[projects/commerceguard-v4](projects/commerceguard-v4/README.md) applies the same idea, that an
+agent should not grade its own work, to digital advertising. Four roles (Data Analyst,
+Strategy Planner, Scenario Simulator, Independent Auditor) review weekly Facebook and Google Ads
+spend and propose a budget shift, and the auditor rejects proposals that break hard rules. It is
+read-only, with a 40-week walk-forward backtest and 17 tests.
+
 ## Quality checks
 
 CI runs `ruff`, `mypy --strict`, the test suite with a coverage gate of 85% on Python 3.12 and
