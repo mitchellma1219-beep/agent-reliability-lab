@@ -1,5 +1,9 @@
 # Agent Reliability Lab
 
+> **Looking for CommerceGuard?** The multi-agent workflow for digital ad budget decisions
+> (Data Analyst → Strategy Planner → Scenario Simulator → Independent Auditor) is in
+> [projects/commerceguard-v4](projects/commerceguard-v4/README.md).
+
 A testing and evaluation framework for autonomous AI agents. It runs an agent against
 scenario suites built on simulated tools and measures whether the agent is accurate, follows
 instructions, resists prompt injection, recovers from tool faults and stays inside its cost and
